@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en-US">
+  <head>
+    <title>CMS</title>
+  </head>
+
+  <% if session[:error] %>
+    <div class="flash error">
+      <h3><%== session.delete(:error) %></h3>
+    </div>
+  <% end %>
+
+  <body>
+    <h1>Content Management System</h1>
+    <%== yield %>
+
+  </body>
+</html>
