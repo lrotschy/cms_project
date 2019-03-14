@@ -2,17 +2,19 @@
 <html lang="en-US">
   <head>
     <title>CMS</title>
+    <link rel="stylesheet" href="/stylesheets/cms.css">
   </head>
 
-  <% if session[:error] %>
-    <div class="flash error">
-      <h3><%== session.delete(:error) %></h3>
+  <% if session[:flash] %>
+    <div class="flash">
+      <h3><%== session.delete(:flash) %></h3>
     </div>
   <% end %>
+
 
   <body>
     <h1>Content Management System</h1>
     <%== yield %>
-
   </body>
+
 </html>

@@ -10,16 +10,79 @@ configure do
   set :erb, escape_html: true
 end
 
-before do
-  @root = File.expand_path("..", __FILE__)
-  @file_list = Dir.glob(@root + "/content_files/*").map do |file|
-    File.basename(file)
+
+def data_path
+  if ENV["RACK_ENV"] == "test"
+    File.expand_path("../test/data", __FILE__)
+  else
+    File.expand_path("../content_files", __FILE__)
   end
-  p session
+end
+
+def inspect_rack_env
+  puts ""
+  puts ""
+  puts "inspect env:"
+  env.each do |key, value|
+    p "#{key} => #{value}"
+  end
+  puts ""
+end
+
+def inspect_session_data
+  puts ""
+  puts "inspect session"
+  session.each do |key, value|
+    p "#{key} => #{value}"
+  end
+  puts ""
+  puts ""
+end
+
+def inspect_file_list
   p @file_list
 end
 
+before do
+  pattern = File.join(data_path, "*")
+  @file_list = Dir.glob(pattern).map do |path|
+    File.basename(path)
+  end
+
+  inspect_rack_env
+  inspect_session_data
+  inspect_file_list
+end
+
 get "/" do
+  erb :enter, layout: :layout
+end
+
+get "/sign-in" do
+  erb :sign_in, layout: :layout
+end
+
+post "/verify-sign-in" do
+  username = params[:username]
+  if username == "admin" && params[:password] == "password"
+    session[:username] = username
+    session[:flash] = "You have successfully signed in!"
+    redirect "/index"
+  else
+    session[:flash] = "Sorry, but your username and password are not correct."
+    status 422
+    erb :sign_in, layout: :layout
+  end
+end
+
+post "/sign-out" do
+  session.delete(:username)
+  session[:flash] = "You have signed out."
+  redirect "/"
+end
+
+# access index page
+get "/index" do
   erb :index, layout: :layout
 end
 
@@ -29,20 +92,81 @@ def render_html(file_name)
   markdown.render(file)
 end
 
+def get_content(file_path)
+  file_extension = File.extname("#{file_path}")
+  case file_extension
+  when /.[(mkd)(md)]/
+    {headers: "text/html;charset=utf-8", content: render_html(@file_name)}
+  when ".txt"
+    {headers: "text/plain", content: File.read(@file_path)}
+  end
+end
+
+# view content for a document
 get "/:file_name" do
   @file_name = params[:file_name]
-  @file_path = @root + "/content_files/" + @file_name
-  # if !@file_list.include?(@file_name)
+  @file_path = File.join(data_path, @file_name)
   if File.file?(@file_path) == false
-    session[:error] = "#{@file_name} does not exist"
-    redirect "/"
+    session[:flash] = "#{@file_name} does not exist"
+    redirect "/index"
   else
-    if File.extname("#{@file_path}") == ".md" || File.extname("#{@file_path}") == ".mkd"
-      headers["Content_type"] = "text/html"
-      render_html(@file_name)
-    else
-      headers["Content-Type"] = "text/plain"
-      File.read("content_files/#{@file_name}")
-    end
+    headers["Content-Type"] = get_content(@file_path)[:headers]
+    get_content(@file_path)[:content]
   end
+end
+
+# edit content for a document
+get "/:file_name/edit" do
+  @file_name = params[:file_name]
+  @file_path = File.join(data_path, @file_name)
+  @content = get_content(@file_path)[:content]
+  erb :edit_file, layout: :layout
+end
+
+# submit changes to a document
+post "/index/:file_name"  do
+  @file_name = params[:file_name]
+  @file_path = File.join(data_path, @file_name)
+  # File.open("#{@file_path}", "w") { |f| f.write "#{params[:document_content]}" }
+  File.write(@file_path, params[:document_content])
+  session[:flash] = "#{@file_name} successfully updated"
+  redirect "/index"
+end
+
+# create a new document name
+get "/index/new" do
+  erb :new, layout: :layout
+end
+
+def name_error(name)
+  if !name.match /\w+\.[a-z]{2,3}$/
+    "Name must be between 0 and 100 characters and end with a valid file extension"
+  elsif @file_list.include?(name)
+    "Name must be unique"
+  elsif name.include?(' ')
+    "Name may not include spaces"
+  end
+end
+
+# submit a new name and add new file to data
+post "/index" do
+  file_name = params[:file_name].strip
+  error = name_error(file_name)
+  if error
+    session[:flash] = error
+    erb :new, layout: :layout
+  else
+    File.new(File.join(data_path, file_name), "w+")
+    session[:flash] = "#{file_name} created"
+    redirect "/index"
+  end
+end
+
+# delete a file
+post "/index/:file_name/delete" do
+  file_name = params[:file_name]
+  file_path = File.join(data_path, file_name)
+  File.delete(file_path)
+  session[:flash] = "#{file_name} deleted"
+  redirect "/index"
 end

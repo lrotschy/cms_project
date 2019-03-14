@@ -1,0 +1,8 @@
+<h3>Edit Content</h3>
+<form action="/index/<%= @file_name %>" method="post">
+    <label for="document_content">Enter changes for the document:</label>
+
+    <textarea name="document_content" rows="20" cols="100"> <%= @content %> </textarea>
+
+    <button type="submit">Save</button>
+</form>
