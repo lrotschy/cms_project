@@ -3,13 +3,14 @@ require "sinatra/reloader" if development?
 require "sinatra/content_for"
 require "tilt/erubis"
 require "redcarpet"
+require "yaml"
+require "bcrypt"
 
 configure do
   enable :sessions
   set :session_secret, 'secret'
   set :erb, escape_html: true
 end
-
 
 def data_path
   if ENV["RACK_ENV"] == "test"
@@ -20,27 +21,41 @@ def data_path
 end
 
 def inspect_rack_env
-  puts ""
-  puts ""
+  puts "\n\n"
   puts "inspect env:"
   env.each do |key, value|
     p "#{key} => #{value}"
   end
-  puts ""
+  puts "\n\n"
 end
 
 def inspect_session_data
-  puts ""
-  puts "inspect session"
+  puts "\n\n"
+  puts "inspect session:"
   session.each do |key, value|
     p "#{key} => #{value}"
   end
-  puts ""
-  puts ""
+  puts "\n\n"
 end
 
 def inspect_file_list
   p @file_list
+end
+
+def require_signed_in_user
+  unless session[:username]
+    session[:flash] = "You must be signed in to do that!"
+    redirect "/sign-in"
+  end
+end
+
+def get_users_file
+  if ENV["RACK_ENV"] == "test"
+    path = File.join(data_path, "test_users.yaml")
+  else
+    path = "users.yaml"
+  end
+    YAML.load(File.read(path))
 end
 
 before do
@@ -52,6 +67,9 @@ before do
   inspect_rack_env
   inspect_session_data
   inspect_file_list
+
+  @users = get_users_file
+  p @users
 end
 
 get "/" do
@@ -62,9 +80,19 @@ get "/sign-in" do
   erb :sign_in, layout: :layout
 end
 
+def valid_user?(username, password)
+  if @users.key?(username)
+    bcrypt_password = BCrypt::Password.new(@users[username])
+    bcrypt_password == password
+  else
+    false
+  end
+end
+
 post "/verify-sign-in" do
   username = params[:username]
-  if username == "admin" && params[:password] == "password"
+  password = params[:password]
+  if valid_user?(username, password)
     session[:username] = username
     session[:flash] = "You have successfully signed in!"
     redirect "/index"
@@ -104,6 +132,8 @@ end
 
 # view content for a document
 get "/:file_name" do
+  require_signed_in_user
+
   @file_name = params[:file_name]
   @file_path = File.join(data_path, @file_name)
   if File.file?(@file_path) == false
@@ -113,10 +143,13 @@ get "/:file_name" do
     headers["Content-Type"] = get_content(@file_path)[:headers]
     get_content(@file_path)[:content]
   end
+
 end
 
 # edit content for a document
 get "/:file_name/edit" do
+  require_signed_in_user
+
   @file_name = params[:file_name]
   @file_path = File.join(data_path, @file_name)
   @content = get_content(@file_path)[:content]
@@ -125,6 +158,8 @@ end
 
 # submit changes to a document
 post "/index/:file_name"  do
+  require_signed_in_user
+
   @file_name = params[:file_name]
   @file_path = File.join(data_path, @file_name)
   # File.open("#{@file_path}", "w") { |f| f.write "#{params[:document_content]}" }
@@ -135,11 +170,14 @@ end
 
 # create a new document name
 get "/index/new" do
+  require_signed_in_user
+
   erb :new, layout: :layout
 end
 
 def name_error(name)
-  if !name.match /\w+\.[a-z]{2,3}$/
+  # if !name.match /\w+\.[a-z]{2,3}$/
+  if !name.match /\w+\.[(txt)(mkd)(md)]/
     "Name must be between 0 and 100 characters and end with a valid file extension"
   elsif @file_list.include?(name)
     "Name must be unique"
@@ -150,6 +188,8 @@ end
 
 # submit a new name and add new file to data
 post "/index" do
+require_signed_in_user
+
   file_name = params[:file_name].strip
   error = name_error(file_name)
   if error
@@ -164,6 +204,8 @@ end
 
 # delete a file
 post "/index/:file_name/delete" do
+  require_signed_in_user
+
   file_name = params[:file_name]
   file_path = File.join(data_path, file_name)
   File.delete(file_path)

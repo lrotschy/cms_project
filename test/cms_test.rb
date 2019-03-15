@@ -3,6 +3,8 @@ ENV["RACK_ENV"] = "test"
 require "minitest/autorun"
 require "rack/test"
 require "fileutils"
+require "yaml"
+require "bcrypt"
 
 require_relative "../cms"
 
@@ -15,6 +17,11 @@ class CMSTest < MiniTest::Test
 
   def setup
     FileUtils.mkdir_p(data_path)
+
+    users = { "admin" => BCrypt::Password.create("password") }
+    File.open(File.join(data_path, "/test_users.yaml"), "w") do |file|
+      file.write(users.to_yaml)
+    end
   end
 
   def teardown
@@ -33,13 +40,13 @@ class CMSTest < MiniTest::Test
 
   def admin_session
     {"rack.session" => {username: "admin"}}
-  end 
+  end
 
   def test_index
     create_document("about.md")
     create_document("changes.txt")
     create_document("history.txt")
-    get "/index"
+    get "/index", {}, admin_session
     assert_equal(200, last_response.status)
     assert_equal("text/html;charset=utf-8", last_response["Content-Type"])
     assert_includes(last_response.body, "history.txt")
@@ -49,14 +56,14 @@ class CMSTest < MiniTest::Test
 
   def test_view_document
     create_document("history.txt", "This is a history of the project.")
-    get "/history.txt"
+    get "/history.txt" , {}, admin_session
     assert_equal(200, last_response.status)
     assert_equal("text/plain", last_response["Content-Type"])
     assert_includes(last_response.body, "This is a history of the project.")
   end
 
   def test_invalid_file_request
-    get "/notafile.ext"
+    get "/notafile.ext", {}, admin_session
     assert_equal(302, last_response.status)
     # assert_equal("http://localhost:4567/", last_response["Location"]) Why doesn't this work?
     assert_equal( "notafile.ext does not exist", session[:flash])
@@ -67,90 +74,90 @@ class CMSTest < MiniTest::Test
 
   def test_render_extension_md
     create_document("about.md")
-    get "/about.md"
+    get "/about.md", {}, admin_session
     assert_equal(200, last_response.status)
     assert_equal("text/html;charset=utf-8", last_response["Content-Type"])
   end
 
   def test_render_extension_mkd
     create_document("example.mkd")
-    get "/example.mkd"
+    get "/example.mkd", {}, admin_session
     assert_equal(200, last_response.status)
     assert_equal("text/html;charset=utf-8", last_response["Content-Type"])
   end
 
   def test_edit_document
     create_document("example.mkd")
-    post "/index/example.mkd", document_content: "teststring"
+    post "/index/example.mkd", {document_content: "teststring"}, admin_session
     assert_equal(302, last_response.status)
     assert_equal("example.mkd successfully updated", session[:flash])
 
     get last_response["Location"]
     assert_equal(200, last_response.status)
 
-    get "/example.mkd"
+    get "/example.mkd", {}, admin_session
     assert_includes(last_response.body, "teststring")
   end
 
   def test_create_content
     create_document("another.txt", "teststring")
-    get "/another.txt"
+    get "/another.txt", {}, admin_session
     assert_includes(last_response.body, "teststring")
   end
 
   def test_new_document_form
-    get "/index/new"
+    get "/index/new", {}, admin_session
     assert_equal(200, last_response.status)
     assert_includes(last_response.body, "<form")
   end
 
   def test_create_new_document
-    post "/index", file_name: "test_doc.txt"
+    post "/index", {file_name: "test_doc.txt"}, admin_session
     assert_equal(302, last_response.status)
     assert_equal("test_doc.txt created", session[:flash])
 
-    get last_response["Location"]
+    get last_response["Location"], {}, admin_session
     assert_equal(200, last_response.status)
     assert_includes(last_response.body, "test_doc.txt")
   end
 
   def test_empty_file_name
     # skip
-    post "/index", file_name: ""
+    post "/index", {file_name: ""}, admin_session
     assert_equal(200, last_response.status)
     assert_includes(last_response.body, "Name must be between 0 and 100 characters and end with a valid file extension")
   end
 
   def test_no_ext_file_name
-    post "/index", file_name: "textfile"
+    post "/index", {file_name: "textfile"}, admin_session
     assert_equal(200, last_response.status)
     assert_includes(last_response.body, "Name must be between 0 and 100 characters and end with a valid file extension")
   end
 
   def test_blank_space_file_name
-    post "/index", file_name: "j j.txt"
+    post "/index", {file_name: "j j.txt"}, admin_session
     assert_equal(200, last_response.status)
     assert_includes(last_response.body, "Name may not include spaces")
   end
 
   def test_already_exists_file_name
     create_document("test_file.txt")
-    post "/index", file_name: "test_file.txt"
+    post "/index", {file_name: "test_file.txt"}, admin_session
     assert_equal(200, last_response.status)
     assert_includes(last_response.body, "Name must be unique")
   end
 
   def test_delete_file
     create_document("test_file.txt")
-    get "/index"
+    get "/index", {}, admin_session
     assert_equal(200, last_response.status)
     assert_includes(last_response.body, "test_file.txt")
-    post "/index/test_file.txt/delete"
+    post "/index/test_file.txt/delete", admin_session
     assert_includes("test_file.txt deleted", session[:flash])
     assert_equal(302, last_response.status)
-    get last_response["Location"]
+    get last_response["Location"], {}, admin_session
     assert_equal(200, last_response.status)
-    get "/index"
+    get "/index", {}, admin_session
     assert_equal(200, last_response.status)
     refute_includes(last_response.body, "test_file.txt")
   end
@@ -188,6 +195,22 @@ class CMSTest < MiniTest::Test
     assert_equal(302, last_response.status)
     get last_response["Location"]
     assert_includes(last_response.body, "Sign in")
+  end
+
+  def test_user_not_signed_in_edit
+    create_document "test_doc.txt"
+    get "/test_doc.txt/edit"
+    assert_nil(session[:username])
+    assert_equal(302, last_response.status)
+    assert_equal("You must be signed in to do that!", session[:flash])
+  end
+
+  def test_user_not_signed_in_view
+    create_document "test_doc.txt"
+    get "/test_doc.txt"
+    assert_nil(session[:username])
+    assert_equal(302, last_response.status)
+    assert_equal("You must be signed in to do that!", session[:flash])
   end
 
 end
