@@ -13,8 +13,12 @@
   </li>
   <% end %>
 </ul>
-<h4><a href="/index/archives">See Archives</a><h4>
-<h4><a href="/index/new">Create new document</a></h4>
+<div class="links">
+<h4 class="link"><a href="/index/archives">See Archives</a></h4>
+<h4 class="link"><a href="/index/new">Create new document</a></h4>
+<h4 class="link"><a href="/index/images">Manage Images</a></h4>
+</div>
+
 <footer>
   <% if session[:username] %>
     <p class="user_status">Signed in as <%= session[:username] %></p>

@@ -20,3 +20,21 @@ p.user_status {
   padding: 0;
   margin: 0;
 }
+
+img {
+  max-width: 80%;
+}
+
+.link {
+  float: left;
+}
+
+footer {
+  clear: left;
+}
+
+#upload {
+  border: solid;
+  padding: 0;
+  display: inline-block;
+}

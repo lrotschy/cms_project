@@ -1,0 +1,15 @@
+<ul>
+  <% @images.each do |file| %>
+    <li><a href="/index/images/<%= file %>"><%= file %></a></li>
+  <% end %>
+</ul>
+
+<div id="upload">
+<h4>Upload Image</h4>
+
+<form action="/save_image" method="POST" enctype="multipart/form-data">
+    <input type="file" name="file">
+    <input type="submit" value="Upload image">
+</form>
+</div>
+<h4><a href="/index">Return to Index</a></h4>

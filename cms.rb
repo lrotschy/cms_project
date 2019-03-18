@@ -159,6 +159,10 @@ def render_html(file_path)
   markdown.render(file)
 end
 
+def display_image(file_path)
+  "<img src=\"#{file_path}\" width=\"200\">"
+end
+
 def get_content(file_path)
   file_extension = File.extname("#{file_path}")
   case file_extension
@@ -166,6 +170,8 @@ def get_content(file_path)
     {headers: "text/html;charset=utf-8", content: render_html(file_path)}
   when ".txt"
     {headers: "text/plain", content: File.read(file_path)}
+  when ".JPG"
+    {headers: "text/html;charset=utf-8", content: display_image(file_path)}
   end
 end
 
@@ -290,5 +296,29 @@ get "/index/archives/:file_name" do
     headers["Content-Type"] = get_content(@file_path)[:headers]
     get_content(@file_path)[:content]
   end
+end
 
+post "/save_image" do
+  @file_name = params[:file][:filename]
+  puts "FILE NAME FOR UPLOAD:"
+  p @file_name
+ file = params[:file][:tempfile]
+
+ File.open("./public/#{@file_name}", 'wb') do |f|
+   f.write(file.read)
+ end
+ # get_content("#{@file_name}")[:content]
+ erb :show_image
+end
+
+get "/index/images" do
+  @images = Dir.glob("public/*.JPG").map { |file| File.basename(file) }
+  erb :images, layout: :layout
+end
+
+get "/index/images/:image" do
+  @file_name = "/#{params[:image]}"
+  puts "FILE NAME FOR VIEW IMAGE"
+  p @file_name
+  erb :show_image
 end
