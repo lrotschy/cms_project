@@ -77,7 +77,7 @@ before do
   # inspect_file_list
 
   @users = get_users_file
-  p @users
+  # p @users
 end
 
 get "/" do
@@ -226,7 +226,6 @@ end
 # create a new document name
 get "/index/new" do
   require_signed_in_user
-
   erb :new, layout: :layout
 end
 
@@ -281,14 +280,19 @@ end
 # see archives
 
 get "/index/archives" do
-  @archives = Dir.glob("archives/*.*").map { |f| File.basename(f) }.sort
+  # @archives = Dir.glob(File.join("~", data_path_archives, "*.*")).map { |f| File.basename(f) }.sort
+  if ENV["RACK_ENV"] == "test"
+    @archives = Dir.glob("test/archives/*.*").map { |f| File.basename(f) }.sort
+  else
+    @archives = Dir.glob("archives/*.*").map { |f| File.basename(f) }.sort
+  end 
   erb :archives, layout: :layout
 end
 
 get "/index/archives/:file_name" do
   @file_name = params[:file_name]
   @file_path = File.join(data_path_archives, @file_name)
-  p @file_path
+
   if File.file?(@file_path) == false
     session[:flash] = "#{@file_name} does not exist"
     redirect "/index/archives"
@@ -300,8 +304,8 @@ end
 
 post "/save_image" do
   @file_name = params[:file][:filename]
-  puts "FILE NAME FOR UPLOAD:"
-  p @file_name
+  # puts "FILE NAME FOR UPLOAD:"
+  # p @file_name
  file = params[:file][:tempfile]
 
  File.open("./public/#{@file_name}", 'wb') do |f|
@@ -318,7 +322,7 @@ end
 
 get "/index/images/:image" do
   @file_name = "/#{params[:image]}"
-  puts "FILE NAME FOR VIEW IMAGE"
-  p @file_name
+  # puts "FILE NAME FOR VIEW IMAGE"
+  # p @file_name
   erb :show_image
 end

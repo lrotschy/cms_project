@@ -22,10 +22,13 @@ class CMSTest < MiniTest::Test
     File.open(File.join(data_path, "/test_users.yaml"), "w") do |file|
       file.write(users.to_yaml)
     end
+
+    FileUtils.mkdir_p(data_path_archives)
   end
 
   def teardown
     FileUtils.rm_rf(data_path)
+    FileUtils.rm_rf(data_path_archives)
   end
 
   def create_document(name, content = "")
@@ -90,13 +93,23 @@ class CMSTest < MiniTest::Test
     create_document("example.mkd")
     post "/index/example.mkd", {document_content: "teststring"}, admin_session
     assert_equal(302, last_response.status)
-    assert_equal("example.mkd successfully updated", session[:flash])
+    assert_equal("example.mkd successfully updated. Previous versions preserved in archives.", session[:flash])
 
     get last_response["Location"]
     assert_equal(200, last_response.status)
 
     get "/example.mkd", {}, admin_session
     assert_includes(last_response.body, "teststring")
+  end
+
+  def test_archives
+    create_document("exampleb.mkd")
+    post "/index/exampleb.mkd", {document_content: "test edit"}, admin_session
+    get "/index/archives"
+    assert_equal(200, last_response.status)
+    assert_includes(last_response.body, "exampleb_1.mkd")
+    get "/index/archives/exampleb_1.mkd"
+    assert_equal(200, last_response.status)
   end
 
   def test_create_content
@@ -165,7 +178,7 @@ class CMSTest < MiniTest::Test
   def test_enter_page
     get "/"
     assert_equal(200, last_response.status)
-    assert_includes(last_response.body, "Welcome! Please sign in.")
+    assert_includes(last_response.body, "Welcome! Please sign in:")
   end
 
   def test_sign_in_success
@@ -216,18 +229,29 @@ class CMSTest < MiniTest::Test
   def test_duplicate_file
     create_document "test_doc.txt"
     post "/index/test_doc.txt/duplicate"
-    assert_equal(302, last_response_status)
-    assert_includes(last_response_body, "dup_test_doc.txt")
+    assert_equal(302, last_response.status)
     assert_equal("test_doc.txt duplicated", session[:flash])
+    get last_response["Location"]
+    assert_includes(last_response.body, "dup_test_doc.txt")
+
   end
 
   def test_sign_up_form
+    get "/sign-up"
+    assert_equal(200, last_response.status)
+    assert_includes(last_response.body, "Username")
   end
 
-  def test_archives
+  def test_verify_sign_up
+    post "/verify-sign-up", username: "blooper", password: "blooper12!@"
+    get last_response["Location"]
+    assert_equal("blooper", session[:username])
   end
 
-  def test_images
+  def test_verify_sign_up_error
+    post "/verify-sign-up", username: "b", password: "b"
+    assert_equal(200, last_response.status)
+    assert_includes(last_response.body, "Password must be between 3 and 25 characters!")
   end
 
 end
