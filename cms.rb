@@ -20,6 +20,14 @@ def data_path
   end
 end
 
+def data_path_archives
+  if ENV["RACK_ENV"] == "test"
+    File.expand_path("../test/archives", __FILE__)
+  else
+    File.expand_path("../archives", __FILE__)
+  end
+end
+
 def inspect_rack_env
   puts "\n\n"
   puts "inspect env:"
@@ -64,9 +72,9 @@ before do
     File.basename(path)
   end
 
-  inspect_rack_env
-  inspect_session_data
-  inspect_file_list
+  # inspect_rack_env
+  # inspect_session_data
+  # inspect_file_list
 
   @users = get_users_file
   p @users
@@ -103,6 +111,37 @@ post "/verify-sign-in" do
   end
 end
 
+get "/sign-up" do
+  erb :sign_up, layout: :layout
+end
+
+def signup_error(username, password)
+  if username.length == 0 || username.length > 25
+    "Username must be between 1 and 25 characters!"
+  elsif password.length < 3 || password.length > 25
+    "Password must be between 3 and 25 characters!"
+  elsif !password.match /[!@#$%^&*()?]/
+    "Password must contain at least one letter, one number and one special character."
+  end
+end
+
+post "/verify-sign-up" do
+  username = params[:username]
+  password = params[:password]
+
+  error = signup_error(username, password)
+
+  if error
+    session[:flash] = error
+    erb :sign_up, layout: :layout
+  else
+    @users[username] = BCrypt::Password.create(password)
+    File.open("users.yaml", "w") { |file| file.write(@users.to_yaml) }
+    session[:username] = username
+    redirect "/index"
+  end
+end
+
 post "/sign-out" do
   session.delete(:username)
   session[:flash] = "You have signed out."
@@ -114,9 +153,9 @@ get "/index" do
   erb :index, layout: :layout
 end
 
-def render_html(file_name)
+def render_html(file_path)
   markdown = Redcarpet::Markdown.new(Redcarpet::Render::HTML)
-  file = File.read(@file_path)
+  file = File.read(file_path)
   markdown.render(file)
 end
 
@@ -124,9 +163,9 @@ def get_content(file_path)
   file_extension = File.extname("#{file_path}")
   case file_extension
   when /.[(mkd)(md)]/
-    {headers: "text/html;charset=utf-8", content: render_html(@file_name)}
+    {headers: "text/html;charset=utf-8", content: render_html(file_path)}
   when ".txt"
-    {headers: "text/plain", content: File.read(@file_path)}
+    {headers: "text/plain", content: File.read(file_path)}
   end
 end
 
@@ -156,15 +195,25 @@ get "/:file_name/edit" do
   erb :edit_file, layout: :layout
 end
 
-# submit changes to a document
+def rename_old_version(file_name)
+  basename = File.basename(file_name, ".*")
+  ext = File.extname(file_name)
+  archives = Dir.glob("archives/*").select do |file|
+    file.include?(basename)
+  end
+  idx = archives.length + 1
+  File.join(data_path_archives, (basename + "_" + idx.to_s + ext))
+end
+
+
+# submit changes to a document and archive old copy
 post "/index/:file_name"  do
   require_signed_in_user
-
-  @file_name = params[:file_name]
-  @file_path = File.join(data_path, @file_name)
-  # File.open("#{@file_path}", "w") { |f| f.write "#{params[:document_content]}" }
-  File.write(@file_path, params[:document_content])
-  session[:flash] = "#{@file_name} successfully updated"
+  file_name = params[:file_name]
+  file_path = File.join(data_path, file_name)
+  File.rename(file_path, rename_old_version(file_name))
+  File.write(file_path, params[:document_content])
+  session[:flash] = "#{file_name} successfully updated. Previous versions preserved in archives."
   redirect "/index"
 end
 
@@ -211,4 +260,35 @@ post "/index/:file_name/delete" do
   File.delete(file_path)
   session[:flash] = "#{file_name} deleted"
   redirect "/index"
+end
+
+# duplicate a file
+post "/index/:file_name/duplicate" do
+  file_name = params[:file_name]
+  file_path = File.join(data_path, file_name)
+  content = get_content(file_path)[:content]
+  File.open(File.join(data_path, "dup_#{file_name}"), "w") { |file| file.write(content) }
+  session[:flash] = "#{file_name} duplicated"
+  redirect "/index"
+end
+
+# see archives
+
+get "/index/archives" do
+  @archives = Dir.glob("archives/*.*").map { |f| File.basename(f) }.sort
+  erb :archives, layout: :layout
+end
+
+get "/index/archives/:file_name" do
+  @file_name = params[:file_name]
+  @file_path = File.join(data_path_archives, @file_name)
+  p @file_path
+  if File.file?(@file_path) == false
+    session[:flash] = "#{@file_name} does not exist"
+    redirect "/index/archives"
+  else
+    headers["Content-Type"] = get_content(@file_path)[:headers]
+    get_content(@file_path)[:content]
+  end
+
 end

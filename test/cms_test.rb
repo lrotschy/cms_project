@@ -213,4 +213,21 @@ class CMSTest < MiniTest::Test
     assert_equal("You must be signed in to do that!", session[:flash])
   end
 
+  def test_duplicate_file
+    create_document "test_doc.txt"
+    post "/index/test_doc.txt/duplicate"
+    assert_equal(302, last_response_status)
+    assert_includes(last_response_body, "dup_test_doc.txt")
+    assert_equal("test_doc.txt duplicated", session[:flash])
+  end
+
+  def test_sign_up_form
+  end
+
+  def test_archives
+  end
+
+  def test_images
+  end
+
 end

@@ -1,2 +1,16 @@
 ---
-  admin: "$2a$10$tBBrZEpihItAobrWrN0ytOOlcBKycQjZ7Gm2AmzVhgpw1GUD9IIgS"
+admin: "$2a$10$tBBrZEpihItAobrWrN0ytOOlcBKycQjZ7Gm2AmzVhgpw1GUD9IIgS"
+username: password
+adsf: asdf11243(*&^
+b: !ruby/string:BCrypt::Password
+  str: "$2a$10$EmTEEvfXAq0gnZo1vcrNs.pMcS1hzrrw4mIwaIiFyuShloDDTyvU."
+  version: 2a
+  cost: 10
+  salt: "$2a$10$EmTEEvfXAq0gnZo1vcrNs."
+  checksum: pMcS1hzrrw4mIwaIiFyuShloDDTyvU.
+brooke: !ruby/string:BCrypt::Password
+  str: "$2a$10$sGo145h1.PaCrOBvEzHGouV0mub6cFLMJJ/6ZQ9ZAYvUpiR2rjyj2"
+  version: 2a
+  cost: 10
+  salt: "$2a$10$sGo145h1.PaCrOBvEzHGou"
+  checksum: V0mub6cFLMJJ/6ZQ9ZAYvUpiR2rjyj2

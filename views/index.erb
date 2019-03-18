@@ -6,9 +6,14 @@
     <form action="/index/<%= file %>/delete" method="post" class="inline">
       <button type="submit">Delete File</button>
     </form>
+    <form action="/index/<%= file %>/duplicate" method="post" class="inline">
+      <button type="submit">Duplicate File</button>
+    </form>
+
   </li>
   <% end %>
 </ul>
+<h4><a href="/index/archives">See Archives</a><h4>
 <h4><a href="/index/new">Create new document</a></h4>
 <footer>
   <% if session[:username] %>
